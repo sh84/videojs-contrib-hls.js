@@ -10,9 +10,20 @@ var Hls = require('hls.js');
  */
 function Html5HlsJS(source, tech) {
   var options = tech.options_;
+  var player = this.player = videojs(options.playerId);
   var el = tech.el();
-  var duration = null;
-  var hls = new Hls(options.hlsjsConfig);
+  var is_live = false;
+  var hls = this.player.hls_ = new Hls(options.hlsjsConfig);
+  var errors_count = 0;
+  var last_error_time = null;
+
+  function videoError(error) {
+    hls.destroy();
+    player.error({
+      code: 4, 
+      message: player.localize(error)
+    });
+  }
 
   /**
    * creates an error handler function
@@ -25,17 +36,15 @@ function Html5HlsJS(source, tech) {
     return function() {
       var now = Date.now();
 
-      if (!_recoverDecodingErrorDate || (now - _recoverDecodingErrorDate) > 2000) {
+      if (!_recoverDecodingErrorDate || now - _recoverDecodingErrorDate > 2000) {
         _recoverDecodingErrorDate = now;
         hls.recoverMediaError();
-      }
-      else if (!_recoverAudioCodecErrorDate || (now - _recoverAudioCodecErrorDate) > 2000) {
+      } else if (!_recoverAudioCodecErrorDate || now - _recoverAudioCodecErrorDate > 2000) {
         _recoverAudioCodecErrorDate = now;
         hls.swapAudioCodec();
         hls.recoverMediaError();
-      }
-      else {
-        console.error('Error loading media: File could not be played');
+      } else {
+        videoError('Error loading media: File could not be played');
       }
     };
   }
@@ -50,9 +59,8 @@ function Html5HlsJS(source, tech) {
 
     if (mediaError.code === mediaError.MEDIA_ERR_DECODE) {
       videoTagErrorHandler();
-    }
-    else {
-      console.error('Error loading media: File could not be played');
+    } else {
+      videoError('Error loading media: File could not be played');
     }
   });
 
@@ -61,6 +69,7 @@ function Html5HlsJS(source, tech) {
    */
   this.dispose = function() {
     hls.destroy();
+    this.player.hls = null;
   };
 
   /**
@@ -68,17 +77,21 @@ function Html5HlsJS(source, tech) {
    * @returns {Infinity|number}
    */
   this.duration = function() {
-    return duration || el.duration || 0;
+    return is_live ? Infinity : el.duration || 0;
   };
 
   // update live status on level load
   hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-    duration = data.details.live ? Infinity : data.details.totalduration;
+    is_live = data.details.live && data.details.startSN;
   });
 
   // try to recover on fatal errors
   hls.on(Hls.Events.ERROR, function(event, data) {
+    console.log('ERROR', event, data);
+    var now = Date.now();
     if (data.fatal) {
+      errors_count += 1;
+      last_error_time = now;
       switch (data.type) {
         case Hls.ErrorTypes.NETWORK_ERROR:
           hls.startLoad();
@@ -87,9 +100,15 @@ function Html5HlsJS(source, tech) {
           hlsjsErrorHandler();
           break;
         default:
-          console.error('Error loading media: File could not be played');
+          videoError('Error loading media: File could not be played');
           break;
       }
+    } else if (data.type == Hls.ErrorTypes.NETWORK_ERROR) {
+      errors_count += 1;
+      last_error_time = now;
+    }
+    if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
+      return videoError('Too many errors. Last error: ' + (data.reason || data.type));
     }
   });
 
@@ -108,8 +127,8 @@ function Html5HlsJS(source, tech) {
       writable: false
     });
     el.addTextTrack = function() {
-      return tech.addTextTrack.apply(tech, arguments)
-    }
+      return tech.addTextTrack.apply(tech, arguments);
+    };
   }
 
   // attach hlsjs to videotag
@@ -124,14 +143,11 @@ var HlsSourceHandler = {
   canHandleSource: function(source) {
     if (source.skipContribHlsJs) {
       return '';
-    }
-    else if (hlsTypeRE.test(source.type)) {
+    } else if (hlsTypeRE.test(source.type)) {
       return 'probably';
-    }
-    else if (hlsExtRE.test(source.src)) {
+    } else if (hlsExtRE.test(source.src)) {
       return 'maybe';
-    }
-    else {
+    } else {
       return '';
     }
   },
@@ -151,9 +167,8 @@ if (Hls.isSupported()) {
   var videojs = require('video.js'); // resolved UMD-wise through webpack
 
   if (videojs) {
-    videojs.getComponent('Html5').registerSourceHandler(HlsSourceHandler, 0);
-  }
-  else {
+    videojs.getTech('Html5').registerSourceHandler(HlsSourceHandler, 0);
+  } else {
     console.warn('videojs-contrib-hls.js: Couldn\'t find find window.videojs nor require(\'video.js\')');
   }
 }
