@@ -17,11 +17,13 @@ function Html5HlsJS(source, tech) {
   var errors_count = 0;
   var last_error_time = null;
 
-  function videoError(error) {
+  function videoError() {
     hls.destroy();
     player.error({
       code: 4, 
-      message: player.localize(error)
+      message: Array.prototype.slice.call(arguments).reduce(function(err, cur) {
+        return err + player.localize(cur);
+      }, '')
     });
   }
 
@@ -108,7 +110,7 @@ function Html5HlsJS(source, tech) {
       last_error_time = now;
     }
     if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
-      return videoError('Too many errors. Last error: ' + (data.reason || data.type));
+      return videoError('Too many errors. Last error: ', data.reason || data.type);
     }
   });
 
