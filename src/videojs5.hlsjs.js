@@ -51,6 +51,13 @@ function Html5HlsJS(source, tech) {
     };
   }
 
+  function audioTrackChange() {
+    let tracks = tech.audioTracks();
+    for (let i=0; i < tracks.length; i++) {
+      if (tracks[i].enabled) hls.audioTrack = tracks[i].properties_.id;
+    }
+  }
+
   // create separate error handlers for hlsjs and the video tag
   var hlsjsErrorHandler = errorHandlerFactory();
   var videoTagErrorHandler = errorHandlerFactory();
@@ -71,6 +78,7 @@ function Html5HlsJS(source, tech) {
    */
   this.dispose = function() {
     hls.destroy();
+    tech.audioTracks().removeEventListener('change', audioTrackChange);
     this.player.hls = null;
   };
 
@@ -112,6 +120,25 @@ function Html5HlsJS(source, tech) {
     if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
       return videoError('Too many errors. Last error: ', data.reason || data.type);
     }
+  });
+
+  hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function(event, data) {
+    tech.clearTracks('audio');
+    let tracks = data.audioTracks || [];
+    for (let track of tracks) {
+      let videojs_track = new videojs.AudioTrack({
+        id: track.id,
+        enabled: track.default,
+        language: track.lang,
+        label: track.name
+      });
+      videojs_track.properties_ = track;
+      tech.audioTracks().addTrack(videojs_track);
+    }
+  });
+
+  player.on('ready', function() {
+    tech.audioTracks().addEventListener('change', audioTrackChange);
   });
 
   Object.keys(Hls.Events).forEach(function(key) {
