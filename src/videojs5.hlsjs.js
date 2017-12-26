@@ -52,8 +52,8 @@ function Html5HlsJS(source, tech) {
   }
 
   function audioTrackChange() {
-    let tracks = tech.audioTracks();
-    for (let i=0; i < tracks.length; i++) {
+    var tracks = tech.audioTracks();
+    for (var i=0; i < tracks.length; i++) {
       if (tracks[i].enabled) hls.audioTrack = tracks[i].properties_.id;
     }
   }
@@ -124,9 +124,10 @@ function Html5HlsJS(source, tech) {
 
   hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function(event, data) {
     tech.clearTracks('audio');
-    let tracks = data.audioTracks || [];
-    for (let track of tracks) {
-      let videojs_track = new videojs.AudioTrack({
+    var tracks = data.audioTracks || [];
+    for (var i=0; i < tracks.length; i++) {
+      var track = tracks[i];
+      var videojs_track = new videojs.AudioTrack({
         id: track.id,
         enabled: track.default,
         language: track.lang,
