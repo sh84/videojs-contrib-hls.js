@@ -9,7 +9,7 @@ var Hls = require('hls.js');
  * @constructor
  */
 function Html5HlsJS(source, tech) {
-  var options = tech.options_;
+  var options = videojs.mergeOptions({}, tech.options_);
   var player = this.player = videojs(options.playerId);
   var el = tech.el();
   var is_live = false;
