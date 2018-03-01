@@ -9,11 +9,12 @@ var Hls = require('hls.js');
  * @constructor
  */
 function Html5HlsJS(source, tech) {
-  var options = videojs.mergeOptions({}, tech.options_);
-  var player = this.player = videojs(options.playerId);
+  var player = this.player = videojs(tech.options_.playerId);
   var el = tech.el();
   var is_live = false;
-  var hls = this.player.hls_ = new Hls(options.hlsjsConfig);
+  var is_first_loaded = false;
+  var hls = this.player.hls_ = new Hls(videojs.mergeOptions({}, tech.options_.hlsjsConfig));
+  var fatal_errors_count = 0;
   var errors_count = 0;
   var last_error_time = null;
 
@@ -51,13 +52,6 @@ function Html5HlsJS(source, tech) {
     };
   }
 
-  function audioTrackChange() {
-    var tracks = tech.audioTracks();
-    for (var i=0; i < tracks.length; i++) {
-      if (tracks[i].enabled) hls.audioTrack = tracks[i].properties_.id;
-    }
-  }
-
   // create separate error handlers for hlsjs and the video tag
   var hlsjsErrorHandler = errorHandlerFactory();
   var videoTagErrorHandler = errorHandlerFactory();
@@ -73,13 +67,99 @@ function Html5HlsJS(source, tech) {
     }
   });
 
+  function audioTrackChange() {
+    var tracks = tech.audioTracks();
+    for (var i=0; i < tracks.length; i++) {
+      if (tracks[i].enabled) hls.audioTrack = tracks[i].properties_.id;
+    }
+  }
+
+  function fullHlsReinit() {
+    hls.destroy();
+    tech.off(tech.el_, 'loadstart',tech.constructor.prototype.successiveLoadStartListener_);
+    setTimeout(function() {
+      hls = player.hls_ = new Hls(videojs.mergeOptions({}, tech.options_.hlsjsConfig));
+      errors_count = 0;
+      is_first_loaded = false;
+      last_error_time = null;
+      hlsAddEventsListeners();
+      hls.attachMedia(el);
+      hls.loadSource(source.src);
+      player.play(); 
+    }, 500);
+  }
+
+  function hlsAddEventsListeners() {
+    // update live status on level load
+    hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
+      is_live = data.details.live && data.details.startSN;
+      is_first_loaded = true;
+    });
+
+    // try to recover on fatal errors
+    hls.on(Hls.Events.ERROR, function(event, data) {
+      console.log('ERROR', event, data);
+      var now = Date.now();
+      if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
+        fatal_errors_count += 1;
+        if (fatal_errors_count <= 100) {
+          console.log('Too many errors, full hls reinit');
+          return fullHlsReinit();
+        } else {
+          return videoError('Too many errors. Last error: ', data.reason || data.type);
+        }
+      } 
+      if (data.fatal) {
+        errors_count += 1;
+        last_error_time = now;
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            is_first_loaded ? hls.startLoad() : fullHlsReinit();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            hlsjsErrorHandler();
+            break;
+          default:
+            videoError('Error loading media: File could not be played');
+            break;
+        }
+      } else if (data.type == Hls.ErrorTypes.NETWORK_ERROR) {
+        errors_count += 1;
+        last_error_time = now;
+      }
+    });
+
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function(event, data) {
+      tech.clearTracks('audio');
+      var tracks = data.audioTracks || [];
+      for (var i=0; i < tracks.length; i++) {
+        var track = tracks[i];
+        var videojs_track = new videojs.AudioTrack({
+          id: track.id,
+          enabled: track.default,
+          language: track.lang,
+          label: track.name
+        });
+        videojs_track.properties_ = track;
+        tech.audioTracks().addTrack(videojs_track);
+      }
+    });
+
+    Object.keys(Hls.Events).forEach(function(key) {
+      var eventName = Hls.Events[key];
+      hls.on(eventName, function(event, data) {
+        tech.trigger(eventName, data);
+      });
+    });
+  }
+
   /**
    *
    */
   this.dispose = function() {
     hls.destroy();
     tech.audioTracks().removeEventListener('change', audioTrackChange);
-    this.player.hls = null;
+    this.player.hls_ = null;
   };
 
   /**
@@ -89,65 +169,6 @@ function Html5HlsJS(source, tech) {
   this.duration = function() {
     return is_live ? Infinity : el.duration || 0;
   };
-
-  // update live status on level load
-  hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-    is_live = data.details.live && data.details.startSN;
-  });
-
-  // try to recover on fatal errors
-  hls.on(Hls.Events.ERROR, function(event, data) {
-    console.log('ERROR', event, data);
-    var now = Date.now();
-    if (data.fatal) {
-      errors_count += 1;
-      last_error_time = now;
-      switch (data.type) {
-        case Hls.ErrorTypes.NETWORK_ERROR:
-          hls.startLoad();
-          break;
-        case Hls.ErrorTypes.MEDIA_ERROR:
-          hlsjsErrorHandler();
-          break;
-        default:
-          videoError('Error loading media: File could not be played');
-          break;
-      }
-    } else if (data.type == Hls.ErrorTypes.NETWORK_ERROR) {
-      errors_count += 1;
-      last_error_time = now;
-    }
-    if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
-      return videoError('Too many errors. Last error: ', data.reason || data.type);
-    }
-  });
-
-  hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function(event, data) {
-    tech.clearTracks('audio');
-    var tracks = data.audioTracks || [];
-    for (var i=0; i < tracks.length; i++) {
-      var track = tracks[i];
-      var videojs_track = new videojs.AudioTrack({
-        id: track.id,
-        enabled: track.default,
-        language: track.lang,
-        label: track.name
-      });
-      videojs_track.properties_ = track;
-      tech.audioTracks().addTrack(videojs_track);
-    }
-  });
-
-  player.on('ready', function() {
-    tech.audioTracks().addEventListener('change', audioTrackChange);
-  });
-
-  Object.keys(Hls.Events).forEach(function(key) {
-    var eventName = Hls.Events[key];
-    hls.on(eventName, function(event, data) {
-      tech.trigger(eventName, data);
-    });
-  });
 
   // Intercept native TextTrack calls and route to video.js directly only
   // if native text tracks are not supported on this browser.
@@ -161,7 +182,12 @@ function Html5HlsJS(source, tech) {
     };
   }
 
+  player.on('ready', function() {
+    tech.audioTracks().addEventListener('change', audioTrackChange);
+  });
+
   // attach hlsjs to videotag
+  hlsAddEventsListeners();
   hls.attachMedia(el);
   hls.loadSource(source.src);
 }
