@@ -2,6 +2,12 @@
 
 var Hls = require('hls.js');
 
+var default_config = {
+  fatal_errors_retry_count: 10,
+  fatal_errors_timeout: 30,
+  fatal_errors_recovery_time: 300
+};
+
 /**
  * hls.js source handler
  * @param source
@@ -13,7 +19,8 @@ function Html5HlsJS(source, tech) {
   var el = tech.el();
   var is_live = false;
   var is_first_loaded = false;
-  var hls = this.player.hls_ = new Hls(videojs.mergeOptions({}, tech.options_.hlsjsConfig));
+  var config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
+  var hls = this.player.hls_ = new Hls(config);
   var fatal_errors_count = 0;
   var errors_count = 0;
   var last_error_time = null;
@@ -75,13 +82,14 @@ function Html5HlsJS(source, tech) {
   }
 
   function fullHlsReinit() {
+    fatal_errors_count += 1;
     hls.destroy();
-    tech.off(tech.el_, 'loadstart',tech.constructor.prototype.successiveLoadStartListener_);
+    tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
     setTimeout(function() {
-      hls = player.hls_ = new Hls(videojs.mergeOptions({}, tech.options_.hlsjsConfig));
+      config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
+      hls = player.hls_ = new Hls(config);
       errors_count = 0;
       is_first_loaded = false;
-      last_error_time = null;
       hlsAddEventsListeners();
       hls.attachMedia(el);
       hls.loadSource(source.src);
@@ -94,20 +102,24 @@ function Html5HlsJS(source, tech) {
     hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
       is_live = data.details.live && data.details.startSN;
       is_first_loaded = true;
+      if (last_error_time && Date.now() - last_error_time > config.fatal_errors_recovery_time * 1000) {
+        fatal_errors_count = 0;
+        errors_count = 0;
+        last_error_time = null;
+      }
     });
 
     // try to recover on fatal errors
     hls.on(Hls.Events.ERROR, function(event, data) {
       console.log('ERROR', event, data);
       var now = Date.now();
-      if (errors_count >= 5 && last_error_time && now - last_error_time < 30000) {
-        fatal_errors_count += 1;
-        if (fatal_errors_count <= 100) {
-          console.log('Too many errors, full hls reinit');
-          return fullHlsReinit();
-        } else {
-          return videoError('Too many errors. Last error: ', data.reason || data.type);
-        }
+      if (fatal_errors_count > config.fatal_errors_retry_count) {
+        return videoError('Too many errors. Last error: ', data.reason || data.type);
+      }
+      if (errors_count >= 5 && last_error_time && now - last_error_time < config.fatal_errors_timeout * 1000) {
+        console.log('Too many errors, full hls reinit');
+        last_error_time = now;
+        return fullHlsReinit();
       } 
       if (data.fatal) {
         errors_count += 1;
