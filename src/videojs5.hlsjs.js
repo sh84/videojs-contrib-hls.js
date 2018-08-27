@@ -5,7 +5,8 @@ var Hls = require('hls.js');
 var default_config = {
   fatal_errors_retry_count: 10,
   fatal_errors_timeout: 30,
-  fatal_errors_recovery_time: 300
+  fatal_errors_recovery_time: 300,
+  first_load_error_retry_time: 1
 };
 
 /**
@@ -116,7 +117,7 @@ function Html5HlsJS(source, tech) {
       if (fatal_errors_count > config.fatal_errors_retry_count) {
         return videoError('Too many errors. Last error: ', data.reason || data.type);
       }
-      if (errors_count >= 5 && last_error_time && now - last_error_time < config.fatal_errors_timeout * 1000) {
+      if (errors_count >= 5 && last_error_time && now - last_error_time > config.fatal_errors_timeout * 1000) {
         console.log('Too many errors, full hls reinit');
         last_error_time = now;
         return fullHlsReinit();
@@ -126,7 +127,13 @@ function Html5HlsJS(source, tech) {
         last_error_time = now;
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            is_first_loaded ? hls.startLoad() : fullHlsReinit();
+            if (is_first_loaded) {
+              setTimeout(() => {
+                hls.startLoad();
+              }, config.first_load_error_retry_time * 1000);
+            } else {
+              fullHlsReinit();
+            }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
             hlsjsErrorHandler();
