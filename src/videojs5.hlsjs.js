@@ -128,7 +128,7 @@ function Html5HlsJS(source, tech) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             if (is_first_loaded) {
-              setTimeout(() => {
+              setTimeout(function() {
                 hls.startLoad();
               }, config.first_load_error_retry_time * 1000);
             } else {
