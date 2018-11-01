@@ -36,6 +36,16 @@ function Html5HlsJS(source, tech) {
     });
   }
 
+  var el_error_event_listener = function(e) {
+    var mediaError = e.currentTarget.error;
+
+    if (mediaError.code === mediaError.MEDIA_ERR_DECODE) {
+      videoTagErrorHandler();
+    } else {
+      videoError('Error loading media: File could not be played');
+    }
+  };
+
   /**
    * creates an error handler function
    * @returns {Function}
@@ -65,15 +75,7 @@ function Html5HlsJS(source, tech) {
   var videoTagErrorHandler = errorHandlerFactory();
 
   // listen to error events coming from the video tag
-  el.addEventListener('error', function(e) {
-    var mediaError = e.currentTarget.error;
-
-    if (mediaError.code === mediaError.MEDIA_ERR_DECODE) {
-      videoTagErrorHandler();
-    } else {
-      videoError('Error loading media: File could not be played');
-    }
-  });
+  el.addEventListener('error', el_error_event_listener);
 
   function audioTrackChange() {
     var tracks = tech.audioTracks();
@@ -98,77 +100,94 @@ function Html5HlsJS(source, tech) {
     }, 500);
   }
 
+  var hls_level_loaded_listener = function(event, data) {
+    is_live = data.details.live && data.details.startSN;
+    is_first_loaded = true;
+    if (last_error_time && Date.now() - last_error_time > config.fatal_errors_recovery_time * 1000) {
+      fatal_errors_count = 0;
+      errors_count = 0;
+      last_error_time = null;
+    }
+  };
+
+  var hls_error_listener = function(event, data) {
+    console.log('ERROR', event, data);
+    var now = Date.now();
+    if (fatal_errors_count > config.fatal_errors_retry_count) {
+      return videoError('Too many errors. Last error: ', data.reason || data.type);
+    }
+    if (errors_count >= 5 && last_error_time && now - last_error_time > config.fatal_errors_timeout * 1000) {
+      console.log('Too many errors, full hls reinit');
+      last_error_time = now;
+      return fullHlsReinit();
+    } 
+    if (data.fatal) {
+      errors_count += 1;
+      last_error_time = now;
+      switch (data.type) {
+        case Hls.ErrorTypes.NETWORK_ERROR:
+          if (is_first_loaded) {
+            setTimeout(function() {
+              hls.startLoad();
+            }, config.first_load_error_retry_time * 1000);
+          } else {
+            fullHlsReinit();
+          }
+          break;
+        case Hls.ErrorTypes.MEDIA_ERROR:
+          hlsjsErrorHandler();
+          break;
+        default:
+          videoError('Error loading media: File could not be played');
+          break;
+      }
+    } else if (data.type == Hls.ErrorTypes.NETWORK_ERROR) {
+      errors_count += 1;
+      last_error_time = now;
+    }
+  };
+
+  var hls_audio_tracks_updated_listeners = function(event, data) {
+    tech.clearTracks('audio');
+    var tracks = data.audioTracks || [];
+    for (var i=0; i < tracks.length; i++) {
+      var track = tracks[i];
+      var videojs_track = new videojs.AudioTrack({
+        id: track.id,
+        enabled: track.default,
+        language: track.lang,
+        label: track.name
+      });
+      videojs_track.properties_ = track;
+      tech.audioTracks().addTrack(videojs_track);
+    }
+  };
+
+  // Contains all anonymous functions for Hls.Events listeners
+  var hls_events_listeners = {};
+
   function hlsAddEventsListeners() {
     // update live status on level load
-    hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-      is_live = data.details.live && data.details.startSN;
-      is_first_loaded = true;
-      if (last_error_time && Date.now() - last_error_time > config.fatal_errors_recovery_time * 1000) {
-        fatal_errors_count = 0;
-        errors_count = 0;
-        last_error_time = null;
-      }
-    });
-
+    hls.on(Hls.Events.LEVEL_LOADED, hls_level_loaded_listener);
     // try to recover on fatal errors
-    hls.on(Hls.Events.ERROR, function(event, data) {
-      console.log('ERROR', event, data);
-      var now = Date.now();
-      if (fatal_errors_count > config.fatal_errors_retry_count) {
-        return videoError('Too many errors. Last error: ', data.reason || data.type);
-      }
-      if (errors_count >= 5 && last_error_time && now - last_error_time > config.fatal_errors_timeout * 1000) {
-        console.log('Too many errors, full hls reinit');
-        last_error_time = now;
-        return fullHlsReinit();
-      } 
-      if (data.fatal) {
-        errors_count += 1;
-        last_error_time = now;
-        switch (data.type) {
-          case Hls.ErrorTypes.NETWORK_ERROR:
-            if (is_first_loaded) {
-              setTimeout(function() {
-                hls.startLoad();
-              }, config.first_load_error_retry_time * 1000);
-            } else {
-              fullHlsReinit();
-            }
-            break;
-          case Hls.ErrorTypes.MEDIA_ERROR:
-            hlsjsErrorHandler();
-            break;
-          default:
-            videoError('Error loading media: File could not be played');
-            break;
-        }
-      } else if (data.type == Hls.ErrorTypes.NETWORK_ERROR) {
-        errors_count += 1;
-        last_error_time = now;
-      }
-    });
-
-    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function(event, data) {
-      tech.clearTracks('audio');
-      var tracks = data.audioTracks || [];
-      for (var i=0; i < tracks.length; i++) {
-        var track = tracks[i];
-        var videojs_track = new videojs.AudioTrack({
-          id: track.id,
-          enabled: track.default,
-          language: track.lang,
-          label: track.name
-        });
-        videojs_track.properties_ = track;
-        tech.audioTracks().addTrack(videojs_track);
-      }
-    });
-
+    hls.on(Hls.Events.ERROR, hls_error_listener);
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, hls_audio_tracks_updated_listeners);
     Object.keys(Hls.Events).forEach(function(key) {
       var eventName = Hls.Events[key];
-      hls.on(eventName, function(event, data) {
+      hls_events_listeners[eventName] = function(event, data) {
         tech.trigger(eventName, data);
-      });
+      };
+      hls.on(eventName, hls_events_listeners[eventName]);
+    });
+  }
+
+  function hlsRemoveEventsListeners() {
+    hls.off(Hls.Events.LEVEL_LOADED, hls_level_loaded_listener);
+    hls.off(Hls.Events.ERROR, hls_error_listener);
+    hls.off(Hls.Events.AUDIO_TRACKS_UPDATED, hls_audio_tracks_updated_listeners);
+    Object.keys(Hls.Events).forEach(function(key) {
+      var eventName = Hls.Events[key];
+      hls.off(eventName, hls_events_listeners[eventName]);
     });
   }
 
@@ -178,6 +197,8 @@ function Html5HlsJS(source, tech) {
   this.dispose = function() {
     hls.destroy();
     tech.audioTracks().removeEventListener('change', audioTrackChange);
+    hlsRemoveEventsListeners();
+    el.removeEventListener('error', el_error_event_listener);
     this.player.hls_ = null;
   };
 
