@@ -112,13 +112,13 @@ function Html5HlsJS(source, tech) {
 
     // try to recover on fatal errors
     hls.on(Hls.Events.ERROR, function(event, data) {
-      console.log('ERROR', event, data);
+      console.debug('ERROR', event, data);
       var now = Date.now();
       if (fatal_errors_count > config.fatal_errors_retry_count) {
         return videoError('Too many errors. Last error: ', data.reason || data.type);
       }
       if (errors_count >= 5 && last_error_time && now - last_error_time > config.fatal_errors_timeout * 1000) {
-        console.log('Too many errors, full hls reinit');
+        console.debug('Too many errors, full hls reinit');
         last_error_time = now;
         return fullHlsReinit();
       } 
@@ -172,12 +172,19 @@ function Html5HlsJS(source, tech) {
     });
   }
 
+  function hlsRemoveEventsListeners() {
+    Object.keys(Hls.Events).forEach(function(event) {
+      hls.removeEventListener(event);
+    });
+  }
+
   /**
    *
    */
   this.dispose = function() {
     hls.destroy();
     tech.audioTracks().removeEventListener('change', audioTrackChange);
+    hlsRemoveEventsListeners();
     this.player.hls_ = null;
   };
 
