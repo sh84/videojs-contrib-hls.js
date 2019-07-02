@@ -28,12 +28,23 @@ function Html5HlsJS(source, tech) {
 
   function videoError() {
     hls.destroy();
-    player.error({
-      code: 4, 
-      message: Array.prototype.slice.call(arguments).reduce(function(err, cur) {
-        return err + player.localize(cur);
-      }, '')
-    });
+    var errorArguments = arguments;
+    var triggerError = function() {
+      player.error({
+        code: 4,
+        message: Array.prototype.slice.call(errorArguments).reduce(function(err, cur) {
+          return err + player.localize(cur);
+        }, '')
+      });
+    };
+    // If error occured while playing ad
+    if (player.vast && player.vast.curAd && !player.paused()) {
+      // Trigger error message when ad ends
+      player.on('vast.adEnd', triggerError);
+    } else {
+      // Trigger error immediately
+      triggerError();
+    }
   }
 
   /**
