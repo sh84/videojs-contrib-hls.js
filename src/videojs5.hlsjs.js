@@ -114,6 +114,9 @@ function Html5HlsJS(source, tech) {
     hls.on(Hls.Events.ERROR, function(event, data) {
       console.log('ERROR', event, data);
       var now = Date.now();
+      if (data.response && (data.response.code == 403 || data.response.code == 503)) {
+        return player.trigger('network_forbidden_error');
+      }
       if (fatal_errors_count > config.fatal_errors_retry_count) {
         return videoError('Too many errors. Last error: ', data.reason || data.type);
       }
