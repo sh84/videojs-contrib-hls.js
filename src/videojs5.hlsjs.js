@@ -243,6 +243,7 @@ var HlsSourceHandler = {
 
 if (Hls.isSupported()) {
   var videojs = require('video.js'); // resolved UMD-wise through webpack
+  videojs = videojs.default || videojs;
 
   if (videojs) {
     videojs.getTech('Html5').registerSourceHandler(HlsSourceHandler, 0);
