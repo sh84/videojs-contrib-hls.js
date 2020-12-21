@@ -108,6 +108,11 @@ function Html5HlsJS(source, tech) {
         errors_count = 0;
         last_error_time = null;
       }
+      if (is_live) {
+        player.addClass('vjs-live');
+      } else {
+        player.removeClass('vjs-live');
+      }
     });
 
     // try to recover on fatal errors
