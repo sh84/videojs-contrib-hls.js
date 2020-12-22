@@ -85,7 +85,7 @@ function Html5HlsJS(source, tech) {
   function fullHlsReinit() {
     fatal_errors_count += 1;
     hls.destroy();
-    tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
+    //tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
     setTimeout(function() {
       config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
       hls = player.hls_ = new Hls(config);
@@ -94,7 +94,12 @@ function Html5HlsJS(source, tech) {
       hlsAddEventsListeners();
       hls.attachMedia(el);
       hls.loadSource(source.src);
-      player.play(); 
+      let playPromise = player.play(); 
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('play error:', error)
+        });
+      }
     }, 500);
   }
 
@@ -107,11 +112,6 @@ function Html5HlsJS(source, tech) {
         fatal_errors_count = 0;
         errors_count = 0;
         last_error_time = null;
-      }
-      if (is_live) {
-        player.addClass('vjs-live');
-      } else {
-        player.removeClass('vjs-live');
       }
     });
 
@@ -140,7 +140,9 @@ function Html5HlsJS(source, tech) {
                 hls.startLoad();
               }, config.first_load_error_retry_time * 1000);
             } else {
-              fullHlsReinit();
+              setTimeout(function() {
+                fullHlsReinit();
+              }, config.first_load_error_retry_time * 100);
             }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
