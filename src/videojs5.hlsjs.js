@@ -18,6 +18,8 @@ var default_config = {
 function Html5HlsJS(source, tech) {
   var player = this.player = videojs(tech.options_.playerId);
   var el = tech.el();
+  var moving_window = true;
+  var old_sn = null;
   var is_live = false;
   var is_first_loaded = false;
   var config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
@@ -106,6 +108,13 @@ function Html5HlsJS(source, tech) {
   function hlsAddEventsListeners() {
     // update live status on level load
     hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
+      // set moving_window after initialization old_sn
+      if (old_sn !== null) {
+        // determine if sequence number changes
+        moving_window = old_sn !== data.details.startSN;
+      }
+      old_sn = data.details.startSN;
+
       is_live = data.details.live && data.details.startSN;
       is_first_loaded = true;
       if (last_error_time && Date.now() - last_error_time > config.fatal_errors_recovery_time * 1000) {
@@ -196,7 +205,8 @@ function Html5HlsJS(source, tech) {
    * @returns {Infinity|number}
    */
   this.duration = function() {
-    return is_live ? Infinity : el.duration || 0;
+    // if video is live and sequence number changes return Infinity for hiding timeline
+    return (is_live && moving_window) ? Infinity : el.duration || 0;
   };
 
   // Intercept native TextTrack calls and route to video.js directly only
