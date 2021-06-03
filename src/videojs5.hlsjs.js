@@ -87,7 +87,9 @@ function Html5HlsJS(source, tech) {
   function fullHlsReinit() {
     fatal_errors_count += 1;
     hls.destroy();
-    //tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
+    if (tech && tech.constructor.prototype.successiveLoadStartListener_) {
+      tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
+    }
     setTimeout(function() {
       config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
       hls = player.hls_ = new Hls(config);
@@ -96,9 +98,9 @@ function Html5HlsJS(source, tech) {
       hlsAddEventsListeners();
       hls.attachMedia(el);
       hls.loadSource(source.src);
-      let playPromise = player.play(); 
+      var playPromise = player.play();
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
+        playPromise.catch(function(error) {
           console.error('play error:', error)
         });
       }
