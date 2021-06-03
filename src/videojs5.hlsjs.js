@@ -98,7 +98,7 @@ function Html5HlsJS(source, tech) {
   function fullHlsReinit() {
     fatal_errors_count += 1;
     hls.destroy();
-    if (videojs.VERSION === '5.12.1') {
+    if (tech && tech.constructor.prototype.successiveLoadStartListener_) {
       tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
     }
     setTimeout(function() {
