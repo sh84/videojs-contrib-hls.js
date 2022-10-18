@@ -60,6 +60,12 @@ function Html5HlsJS(source, tech) {
     return function() {
       var now = Date.now();
 
+
+      hls.once(Hls.Events.MEDIA_ATTACHED, function() {
+        // Force player to play video after recovering from media error
+        player.play();
+      });
+
       if (!_recoverDecodingErrorDate || now - _recoverDecodingErrorDate > 2000) {
         _recoverDecodingErrorDate = now;
         hls.recoverMediaError();
