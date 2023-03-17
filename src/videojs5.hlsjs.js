@@ -230,15 +230,15 @@ function Html5HlsJS(source, tech) {
 
   // Intercept native TextTrack calls and route to video.js directly only
   // if native text tracks are not supported on this browser.
-  if (!tech.featuresNativeTextTracks) {
-    Object.defineProperty(el, 'textTracks', {
-      value: tech.textTracks,
-      writable: false
-    });
-    el.addTextTrack = function() {
-      return tech.addTextTrack.apply(tech, arguments);
-    };
-  }
+  // if (!tech.featuresNativeTextTracks) {
+  //   Object.defineProperty(el, 'textTracks', {
+  //     value: tech.textTracks,
+  //     writable: false
+  //   });
+  //   el.addTextTrack = function() {
+  //     return tech.addTextTrack.apply(tech, arguments);
+  //   };
+  // }
 
   player.on('ready', function() {
     tech.audioTracks().addEventListener('change', audioTrackChange);
@@ -248,6 +248,8 @@ function Html5HlsJS(source, tech) {
   hlsAddEventsListeners();
   hls.attachMedia(el);
   hls.loadSource(source.src);
+
+  this.player.trigger('Html5HlsJS/ready');
 }
 
 var hlsTypeRE = /^application\/(x-mpegURL|vnd\.apple\.mpegURL)$/i;
