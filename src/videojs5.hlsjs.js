@@ -240,9 +240,7 @@ function Html5HlsJS(source, tech) {
   //   };
   // }
 
-  player.on('ready', function() {
-    tech.audioTracks().addEventListener('change', audioTrackChange);
-  });
+  tech.audioTracks().addEventListener('change', audioTrackChange);
 
   // attach hlsjs to videotag
   hlsAddEventsListeners();
