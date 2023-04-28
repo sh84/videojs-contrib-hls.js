@@ -240,14 +240,14 @@ function Html5HlsJS(source, tech) {
     };
   }
 
-  player.on('ready', function() {
-    tech.audioTracks().addEventListener('change', audioTrackChange);
-  });
+  tech.audioTracks().addEventListener('change', audioTrackChange);
 
   // attach hlsjs to videotag
   hlsAddEventsListeners();
   hls.attachMedia(el);
   hls.loadSource(source.src);
+
+  this.player.trigger('Html5HlsJS/ready');
 }
 
 var hlsTypeRE = /^application\/(x-mpegURL|vnd\.apple\.mpegURL)$/i;
