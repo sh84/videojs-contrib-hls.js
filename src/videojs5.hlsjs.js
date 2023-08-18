@@ -146,6 +146,7 @@ function Html5HlsJS(source, tech) {
     // try to recover on fatal errors
     hls.on(Hls.Events.ERROR, function(event, data) {
       console.log('ERROR', event, data);
+      player.trigger('error:hls.js');
       var now = Date.now();
       if (data.response && (data.response.code == 403 || data.response.code == 503)) {
         return player.trigger('network_forbidden_error');
