@@ -231,15 +231,15 @@ function Html5HlsJS(source, tech) {
 
   // Intercept native TextTrack calls and route to video.js directly only
   // if native text tracks are not supported on this browser.
-  // if (!tech.featuresNativeTextTracks) {
-  //   Object.defineProperty(el, 'textTracks', {
-  //     value: tech.textTracks,
-  //     writable: false
-  //   });
-  //   el.addTextTrack = function() {
-  //     return tech.addTextTrack.apply(tech, arguments);
-  //   };
-  // }
+  if (!tech.featuresNativeTextTracks) {
+    Object.defineProperty(el, 'textTracks', {
+      value: tech.textTracks(),
+      writable: false
+    });
+    el.addTextTrack = function() {
+      return tech.addTextTrack.apply(tech, arguments);
+    };
+  }
 
   tech.audioTracks().addEventListener('change', audioTrackChange);
 
