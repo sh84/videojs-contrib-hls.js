@@ -1,13 +1,13 @@
 {
   "name": "videojs-contrib-hls.js",
-  "version": "3.0.2",
+  "version": "3.2.0",
   "description": "hls.js plugin for videojs",
-  "main": "src/videojs5.hlsjs.js",
+  "main": "dist/videojs-contrib-hlsjs.min.js",
   "directories": {
     "example": "examples"
   },
   "dependencies": {
-    "hls.js": "0.7.6"
+    "hls.js": "^0.14.17"
   },
   "devDependencies": {
     "webpack": "2.4.1"
@@ -19,7 +19,7 @@
     "build": "webpack --bail -p",
     "dev": "webpack -w",
     "clean": "rm -fr dist",
-    "prepublish": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "repository": {
     "type": "git",
