@@ -1,23 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Videojs-contrib-hls.js</title>
-    <link href="http://vjs.zencdn.net/5.19.2/video-js.css" rel="stylesheet">
-    <script src="http://vjs.zencdn.net/5.19.2/video.js"></script>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Video.js v8 player with hls.js engine and P2P demo</title>
+        <script src="https://cdn.jsdelivr.net/npm/p2p-media-loader-core@latest/build/p2p-media-loader-core.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/p2p-media-loader-hlsjs@latest/build/p2p-media-loader-hlsjs.min.js"></script>
 
-    <!-- increase browser support with MSE polyfill -->
-    <script src="http://unpkg.com/videojs-contrib-media-sources@4.4.4/dist/videojs-contrib-media-sources.min.js"></script>
+        <link href="https://vjs.zencdn.net/8.9.0/video-js.css" rel="stylesheet" />
+        <script src="https://vjs.zencdn.net/8.9.0/video.min.js"></script>
 
-    <script src="../dist/videojs-contrib-hlsjs.min.js"></script>
-</head>
-<body>
-<video id="player" class="video-js vjs-default-skin" height="360" width="640" controls preload="none">
-    <source src="https://wowza.peer5.com/live/smil:clock.smil/playlist.m3u8"
-            type="application/x-mpegURL"/>
-</video>
-<script>
-    var player = videojs('#player');
-</script>
-</body>
+        <script src="../dist/videojs-contrib-hlsjs.min.js"></script>
+
+        <style>
+            #video {
+                width: 730px;
+                height: 410px;
+                margin-left: auto;
+                margin-right: auto;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <video id="video" class="video-js vjs-default-skin" preload="none" autoplay controls></video>
+
+        <script>
+            if (p2pml.hlsjs.Engine.isSupported()) {
+                var engine = new p2pml.hlsjs.Engine();
+
+                var player = videojs("video", {
+                    html5: {
+                        hlsjsConfig: {
+                            liveSyncDurationCount: 7, // To have at least 7 segments in queue
+                            loader: engine.createLoaderClass(),
+                        },
+                    },
+                });
+
+                p2pml.hlsjs.initVideoJsContribHlsJsPlayer(player);
+
+                player.src({
+                    src: "https://fly.live.ceeblue.tv/cmaf/out+de1e6f7c-e5db-450b-9603-c3644274779b/index.m3u8",
+                    type: "application/x-mpegURL",
+                });
+
+                player.ready(function () {
+                    player.volume(0.01); // 1%
+                });
+            } else {
+                document.write("Not supported :(");
+            }
+        </script>
+    </body>
 </html>
