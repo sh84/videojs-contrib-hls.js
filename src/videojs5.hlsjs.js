@@ -22,7 +22,7 @@ function Html5HlsJS(source, tech) {
   var old_sn = null;
   var is_live = false;
   var is_first_loaded = false;
-  var config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
+  var config = (videojs.mergeOptions || videojs.obj.merge)(default_config, tech.options_.hlsjsConfig);
   var hls = this.player.hls_ = new (Hls.Hls || Hls)(config);
   var fatal_errors_count = 0;
   var errors_count = 0;
@@ -108,7 +108,7 @@ function Html5HlsJS(source, tech) {
       tech.off(tech.el_, 'loadstart', tech.constructor.prototype.successiveLoadStartListener_);
     }
     setTimeout(function() {
-      config = videojs.mergeOptions(default_config, tech.options_.hlsjsConfig);
+      config = (videojs.mergeOptions || videojs.obj.merge)(default_config, tech.options_.hlsjsConfig);
       hls = player.hls_ = new (Hls.Hls || Hls)(config);
       errors_count = 0;
       is_first_loaded = false;
