@@ -226,7 +226,13 @@ function Html5HlsJS(source, tech) {
    */
   this.duration = function() {
     // if video is live and sequence number changes return Infinity for hiding timeline
-    return (is_live && moving_window) ? Infinity : el.duration || 0;
+    if (!this.player.options_.is_live) {
+      return el.duration || 0;
+    } else if (is_first_loaded && is_live && moving_window) {
+      return Infinity;
+    } else {
+      return this.player.hls_.liveSyncPosition;
+    }
   };
 
   // Intercept native TextTrack calls and route to video.js directly only
