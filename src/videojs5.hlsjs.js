@@ -64,7 +64,16 @@ function Html5HlsJS(source, tech) {
 
       hls.once(Hls.Events.MEDIA_ATTACHED, function() {
         // Force player to play video after recovering from media error
-        player.play();
+        var playPromise = player.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(function(error) {
+            if (error && (error.name === 'NotAllowedError' || error.code === 0)) {
+              console.warn('play() was blocked by the browser', error);
+            } else {
+              console.error('play error:', error);
+            }
+          });
+        }
       });
 
       if (!_recoverDecodingErrorDate || now - _recoverDecodingErrorDate > 2000) {
@@ -117,9 +126,13 @@ function Html5HlsJS(source, tech) {
       hls.attachMedia(el);
       hls.loadSource(source.src);
       var playPromise = player.play();
-      if (playPromise !== undefined) {
+      if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(function(error) {
-          console.error('play error:', error)
+          if (error && (error.name === 'NotAllowedError' || error.code === 0)) {
+            console.warn('play() was blocked by the browser', error);
+          } else {
+            console.error('play error:', error);
+          }
         });
       }
     }, 500);
