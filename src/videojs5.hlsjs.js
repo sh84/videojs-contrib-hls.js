@@ -18,7 +18,6 @@ var default_config = {
 function Html5HlsJS(source, tech) {
   var player = this.player = videojs(tech.options_.playerId);
   var el = tech.el();
-  var moving_window = true;
   var old_sn = null;
   var is_live = false;
   var is_first_loaded = false;
@@ -27,6 +26,8 @@ function Html5HlsJS(source, tech) {
   var fatal_errors_count = 0;
   var errors_count = 0;
   var last_error_time = null;
+  var maxCountLevelsForPlaylistWithoutDvr = tech.options_.maxCountLevelsForPlaylistWithoutDvr;
+  var isUseDvr = false;
 
   function videoError() {
     hls.destroy();
@@ -124,15 +125,25 @@ function Html5HlsJS(source, tech) {
     }, 500);
   }
 
+  function checkDvrByLevel(levelDetails) {
+    let moving_window;
+    // If there are less chunks in the current playlist, seeking is disabled
+    const isDvrByLevelsCount = levelDetails.fragments.length <= maxCountLevelsForPlaylistWithoutDvr;
+
+    // set moving_window after initialization old_sn
+    if (old_sn !== null) {
+      // determine if sequence number changes
+      moving_window = old_sn !== levelDetails.startSN;
+    }
+    old_sn = levelDetails.startSN;
+
+    return !Boolean(isDvrByLevelsCount || moving_window);
+  }
+
   function hlsAddEventsListeners() {
     // update live status on level load
     hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-      // set moving_window after initialization old_sn
-      if (old_sn !== null) {
-        // determine if sequence number changes
-        moving_window = old_sn !== data.details.startSN;
-      }
-      old_sn = data.details.startSN;
+      isUseDvr = checkDvrByLevel(data.details);
 
       is_live = data.details.live && data.details.startSN;
       is_first_loaded = true;
@@ -158,7 +169,7 @@ function Html5HlsJS(source, tech) {
         console.log('Too many errors, full hls reinit');
         last_error_time = now;
         return fullHlsReinit();
-      } 
+      }
       if (data.fatal) {
         errors_count += 1;
         last_error_time = now;
@@ -225,11 +236,9 @@ function Html5HlsJS(source, tech) {
    * @returns {Infinity|number}
    */
   this.duration = function() {
-    // if video is live and sequence number changes return Infinity for hiding timeline
+    // if video is live and DVR is disabled return Infinity for hiding timeline
     // when playing DVR on iPhone, the duration of the video element is Infinity, while others have a specific number
-    if (!this.player.options_.is_live) {
-      return el.duration || 0;
-    } else if (is_live && moving_window) {
+    if (is_live && !isUseDvr) {
       return Infinity;
     } else if (el.duration === Infinity) {
       // for iPhone, where el.duration equals Infinity, return liveSyncPosition
