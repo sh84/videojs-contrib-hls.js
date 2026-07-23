@@ -226,6 +226,7 @@ function Html5HlsJS(source, tech) {
    *
    */
   this.dispose = function() {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     hls.destroy();
     tech.audioTracks().removeEventListener('change', audioTrackChange);
     this.player.hls_ = null;
@@ -262,6 +263,25 @@ function Html5HlsJS(source, tech) {
   }
 
   tech.audioTracks().addEventListener('change', audioTrackChange);
+
+  /**
+   * We pause the player
+   * if the user leaves the page
+   * and it’s an iOS device
+   * and the player is not in PIP mode
+   */
+  function onVisibilityChange() {
+    if (
+      document.visibilityState === 'visible'
+      || !videojs.browser.IS_IOS
+      || document.pictureInPictureElement === el
+    ) return;
+
+    // When you minimize the browser and reopen it, the video freezes.
+    player.pause();
+  }
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
   // attach hlsjs to videotag
   hlsAddEventsListeners();
