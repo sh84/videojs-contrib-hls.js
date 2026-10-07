@@ -22,6 +22,29 @@ function Html5HlsJS(source, tech) {
   var is_live = false;
   var is_first_loaded = false;
   var config = (videojs.mergeOptions || videojs.obj.merge)(default_config, tech.options_.hlsjsConfig);
+
+  function isExternalUrl(url) {
+    if (!url) return false;
+
+    try {
+      var currentLocation = new URL(window.location.href);
+      var urlToCheck = new URL(url);
+
+      return currentLocation.hostname !== urlToCheck.hostname;
+    } catch (e) {
+      console.error('Error parsing URL:', e);
+      return false;
+    }
+  }
+
+  config.xhrSetup = function(xhr, url) {
+    if (isExternalUrl(url)) {
+      xhr.withCredentials = false;
+    } else {
+      xhr.withCredentials = true;
+    }
+  };
+
   var hls = this.player.hls_ = new (Hls.Hls || Hls)(config);
   var fatal_errors_count = 0;
   var errors_count = 0;
